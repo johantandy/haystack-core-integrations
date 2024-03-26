@@ -145,7 +145,7 @@ class WeaviateDocumentStore:
         if url and url.startswith("http") and url.endswith(".weaviate.network"):
             self._client = weaviate.connect_to_wcs(
                 url,
-                auth_credentials=auth_client_secret.resolve_value(),
+                auth_credentials=auth_client_secret.resolve_value() if auth_client_secret else None,
                 headers=additional_headers,
                 additional_config=additional_config,
             )
