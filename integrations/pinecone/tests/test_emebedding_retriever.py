@@ -16,6 +16,7 @@ def test_init_default():
     assert retriever.document_store == mock_store
     assert retriever.filters == {}
     assert retriever.top_k == 10
+    assert retriever.filter_policy == "replace"
 
 
 @patch("haystack_integrations.document_stores.pinecone.document_store.pinecone")
@@ -53,6 +54,7 @@ def test_to_dict(mock_pinecone, monkeypatch):
             },
             "filters": {},
             "top_k": 10,
+            "filter_policy": "replace",
         },
     }
 
@@ -81,6 +83,7 @@ def test_from_dict(mock_pinecone, monkeypatch):
             },
             "filters": {},
             "top_k": 10,
+            "filter_policy": "replace",
         },
     }
 
@@ -98,6 +101,7 @@ def test_from_dict(mock_pinecone, monkeypatch):
 
     assert retriever.filters == {}
     assert retriever.top_k == 10
+    assert retriever.filter_policy == "replace"
 
 
 def test_run():

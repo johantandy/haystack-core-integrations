@@ -21,6 +21,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._document_store == document_store
         assert retriever._filters is None
         assert retriever._top_k == 10
+        assert retriever._filter_policy == "replace"
         assert retriever._return_embedding is False
 
     def test_to_dict(self):
@@ -74,6 +75,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                 },
                 "filters": None,
                 "top_k": 10,
+                "filter_policy": "replace",
                 "scale_score": True,
                 "return_embedding": False,
             },
@@ -89,6 +91,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
                 },
                 "filters": None,
                 "top_k": 5,
+                "filter_policy": "replace",
                 "scale_score": False,
                 "return_embedding": True,
             },
@@ -98,6 +101,7 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
         assert retriever._document_store.index == "test"
         assert retriever._filters is None
         assert retriever._top_k == 5
+        assert retriever._filter_policy == "replace"
         assert retriever._scale_score is False
         assert retriever._return_embedding is True
 
@@ -143,6 +147,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._document_store == document_store
         assert retriever._filters is None
         assert retriever._top_k == 10
+        assert retriever._filter_policy == "replace"
         assert retriever._return_embedding is False
 
     def test_to_dict(self):
@@ -198,6 +203,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
                 "top_k": 10,
                 "scale_score": True,
                 "return_embedding": False,
+                "filter_policy": "replace",
             },
         }
 
@@ -213,6 +219,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
                 "top_k": 5,
                 "scale_score": False,
                 "return_embedding": True,
+                "filter_policy": "replace",
             },
         }
         retriever = QdrantSparseEmbeddingRetriever.from_dict(data)
@@ -220,6 +227,7 @@ class TestQdrantSparseEmbeddingRetriever(FilterableDocsFixtureMixin):
         assert retriever._document_store.index == "test"
         assert retriever._filters is None
         assert retriever._top_k == 5
+        assert retriever._filter_policy == "replace"
         assert retriever._scale_score is False
         assert retriever._return_embedding is True
 
@@ -252,6 +260,7 @@ class TestQdrantHybridRetriever:
         assert retriever._document_store == document_store
         assert retriever._filters is None
         assert retriever._top_k == 10
+        assert retriever._filter_policy == "replace"
         assert retriever._return_embedding is False
 
     def test_to_dict(self):
@@ -305,6 +314,7 @@ class TestQdrantHybridRetriever:
                 },
                 "filters": None,
                 "top_k": 5,
+                "filter_policy": "replace",
                 "return_embedding": True,
             },
         }
@@ -319,6 +329,7 @@ class TestQdrantHybridRetriever:
                 },
                 "filters": None,
                 "top_k": 5,
+                "filter_policy": "replace",
                 "return_embedding": True,
             },
         }
@@ -327,6 +338,7 @@ class TestQdrantHybridRetriever:
         assert retriever._document_store.index == "test"
         assert retriever._filters is None
         assert retriever._top_k == 5
+        assert retriever._filter_policy == "replace"
         assert retriever._return_embedding
 
     def test_run(self):
