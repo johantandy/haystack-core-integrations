@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import logging
+import psycopg_pool
+from contextlib import contextmanager
 from typing import Any, Dict, List, Literal, Optional
 
 from haystack import default_from_dict, default_to_dict
@@ -10,9 +12,8 @@ from haystack.document_stores.errors import DocumentStoreError, DuplicateDocumen
 from haystack.document_stores.types import DuplicatePolicy
 from haystack.utils.auth import Secret, deserialize_secrets_inplace
 from haystack.utils.filters import convert
-from psycopg import Error, IntegrityError, connect
+from psycopg import Error, IntegrityError, rows
 from psycopg.abc import Query
-from psycopg.cursor import Cursor
 from psycopg.rows import dict_row
 from psycopg.sql import SQL, Identifier
 from psycopg.sql import Literal as SQLLiteral
@@ -74,6 +75,9 @@ HNSW_INDEX_NAME = "haystack_hnsw_index"
 KEYWORD_INDEX_NAME = "haystack_keyword_index"
 
 
+class PostgresConnectionPool:
+
+    pass
 class PgvectorDocumentStore:
     """
     A Document Store using PostgreSQL with the [pgvector extension](https://github.com/pgvector/pgvector) installed.
@@ -145,41 +149,33 @@ class PgvectorDocumentStore:
         self.hnsw_index_creation_kwargs = hnsw_index_creation_kwargs or {}
         self.hnsw_ef_search = hnsw_ef_search
         self.language = language
-        self._connection = None
-        self._cursor = None
-        self._dict_cursor = None
+        self._pool = None
 
+    @staticmethod
+    @contextmanager
+    def get_connection(pool):
+        conn = pool.getconn()
+        try:
+            yield conn
+        finally:
+            pool.putconn(conn)
+    
     @property
-    def cursor(self):
-        if self._cursor is None:
+    def pool(self):
+        if self._pool is None:
             self._create_connection()
 
-        return self._cursor
-
-    @property
-    def dict_cursor(self):
-        if self._dict_cursor is None:
-            self._create_connection()
-
-        return self._dict_cursor
-
-    @property
-    def connection(self):
-        if self._connection is None:
-            self._create_connection()
-
-        return self._connection
+        return self._pool
 
     def _create_connection(self):
         conn_str = self.connection_string.resolve_value() or ""
-        connection = connect(conn_str)
-        connection.autocommit = True
-        connection.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        register_vector(connection)  # Note: this must be called before creating the cursors.
 
-        self._connection = connection
-        self._cursor = self._connection.cursor()
-        self._dict_cursor = self._connection.cursor(row_factory=dict_row)
+        pool = psycopg_pool.ConnectionPool(conn_str, min_size=1, max_size=10, max_idle=60)
+        self._pool = pool
+
+        with self.get_connection(pool) as conn:
+            register_vector(conn)
+            conn.cursor().execute("CREATE EXTENSION IF NOT EXISTS vector")
 
         # Init schema
         if self.recreate_table:
@@ -190,7 +186,7 @@ class PgvectorDocumentStore:
         if self.search_strategy == "hnsw":
             self._handle_hnsw()
 
-        return self._connection
+        return self._pool
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -227,8 +223,7 @@ class PgvectorDocumentStore:
         return default_from_dict(cls, data)
 
     def _execute_sql(
-        self, sql_query: Query, params: Optional[tuple] = None, error_msg: str = "", cursor: Optional[Cursor] = None
-    ):
+        self, sql_query: Query, params: Optional[tuple] = None, error_msg: str = "", row_factory: rows = None):
         """
         Internal method to execute SQL statements and handle exceptions.
 
@@ -239,13 +234,17 @@ class PgvectorDocumentStore:
         """
 
         params = params or ()
-        cursor = cursor or self.cursor
-
-        sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
-        logger.debug("SQL query: %s\nParameters: %s", sql_query_str, params)
 
         try:
-            result = cursor.execute(sql_query, params)
+            with self.get_connection(self.pool) as conn:
+                register_vector(conn)
+                if row_factory:
+                    cursor = conn.cursor(row_factory=row_factory)
+                else:
+                    cursor = conn.cursor()
+                sql_query_str = sql_query.as_string(cursor) if not isinstance(sql_query, str) else sql_query
+                logger.debug("SQL query: %s\nParameters: %s", sql_query_str, params)
+                result = cursor.execute(sql_query, params)
         except Error as e:
             self.connection.rollback()
             detailed_error_msg = f"{error_msg}.\nYou can find the SQL query and the parameters in the debug logs."
@@ -398,7 +397,7 @@ class PgvectorDocumentStore:
             sql_filter,
             params,
             error_msg="Could not filter documents from PgvectorDocumentStore.",
-            cursor=self.dict_cursor,
+            row_factory=dict_row,
         )
 
         records = result.fetchall()
@@ -582,7 +581,7 @@ class PgvectorDocumentStore:
             sql_query,
             (query, *where_params),
             error_msg="Could not retrieve documents from PgvectorDocumentStore.",
-            cursor=self.dict_cursor,
+            row_factory=dict_row,
         )
 
         records = result.fetchall()
@@ -660,7 +659,7 @@ class PgvectorDocumentStore:
             sql_query,
             params,
             error_msg="Could not retrieve documents from PgvectorDocumentStore.",
-            cursor=self.dict_cursor,
+            row_factory=dict_row,
         )
 
         records = result.fetchall()

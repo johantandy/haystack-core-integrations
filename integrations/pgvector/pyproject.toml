@@ -29,6 +29,7 @@ dependencies = [
   "haystack-ai",
   "pgvector",
   "psycopg[binary]"
+  "psycopg[pool]"
 ]
 
 [project.urls]
